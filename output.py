@@ -1,21 +1,14 @@
 import torch
 import numpy as np
 import cv2
-import io
 from time import time
 from ultralytics import YOLO
-
-def bytes_to_image(byte_array):
-    # Convert byte array to a numpy array
-    nparr = np.frombuffer(byte_array, np.uint8)
-    # Decode numpy array to an image
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    return img
+import os
 
 class ObjectDetection:
 
-    def __init__(self, capture_index=None):
-        self.capture_index = capture_index
+    def __init__(self, image_folder_path):
+        self.image_folder_path = image_folder_path
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         print("Using Device: ", self.device)
         self.model = self.load_model()
@@ -47,35 +40,34 @@ class ObjectDetection:
 
         return frame_with_bboxes, xyxys, confidences, class_ids
 
-    def process_image_bytes(self, byte_array):
-        # Convert byte array to image
-        frame = bytes_to_image(byte_array)
-        # Make prediction
-        results = self.predict(frame)
-        # Plot bounding boxes
-        frame_with_bboxes, xyxys, confidences, class_ids = self.plot_bboxes(results, frame)
-        return frame_with_bboxes, xyxys, confidences, class_ids
+    def process_images(self):
+        # Iterate over all files in the provided directory
+        for filename in os.listdir(self.image_folder_path):
+            if filename.lower().endswith('.jpg'):
+                image_path = os.path.join(self.image_folder_path, filename)
+                frame = cv2.imread(image_path)
 
-    def __call__(self):
-        if self.capture_index is not None:
-            cap = cv2.VideoCapture(self.capture_index)
-            assert cap.isOpened()
+                if frame is None:
+                    print(f"Error reading image: {image_path}")
+                    continue
 
-            while True:
                 start_time = time()
-                ret, frame = cap.read()
-                assert ret
                 results = self.predict(frame)
                 frame_with_bboxes, xyxys, confidences, class_ids = self.plot_bboxes(results, frame)
                 end_time = time()
                 fps = 1 / np.round(end_time - start_time, 2)
-                cv2.imshow('YOLOv8 Detection', frame_with_bboxes)
 
-                if cv2.waitKey(5) & 0xFF == 27:
-                    break
+                # Uncomment to show FPS on the frame
+                # cv2.putText(frame_with_bboxes, f'FPS: {int(fps)}', (20, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 2)
 
-            cap.release()
-            cv2.destroyAllWindows()
+                # Display the processed frame
+                cv2.imshow(f'YOLOv8 Detection - {filename}', frame_with_bboxes)
 
-detector = ObjectDetection()
-detector()
+                # Wait for a key event to close the image display
+                cv2.waitKey(3000)
+                cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    image_folder_path = 'path_for_images'  # Update this to your folder path
+    detector = ObjectDetection(image_folder_path=image_folder_path)
+    detector.process_images()
