@@ -4,6 +4,7 @@ import cv2
 from time import time
 from ultralytics import YOLO
 import os
+from collections import Counter
 
 class ObjectDetection:
 
@@ -27,6 +28,7 @@ class ObjectDetection:
         xyxys = []
         confidences = []
         class_ids = []
+        class_count = []
 
         # Extract detections for person class
         for result in results:
@@ -34,11 +36,14 @@ class ObjectDetection:
             xyxys.append(boxes.xyxy)
             confidences.append(boxes.conf)
             class_ids.append(boxes.cls)
+            class_count.extend(boxes.cls.astype(int).tolist())
 
         # Use YOLOv8's built-in plotting function to draw bounding boxes on the image
         frame_with_bboxes = results[0].plot()
 
-        return frame_with_bboxes, xyxys, confidences, class_ids
+        class_counts = Counter(class_count)
+
+        return frame_with_bboxes, xyxys, confidences, class_ids, class_counts
 
     def process_images(self):
         # Iterate over all files in the provided directory
@@ -53,7 +58,22 @@ class ObjectDetection:
 
                 start_time = time()
                 results = self.predict(frame)
-                frame_with_bboxes, xyxys, confidences, class_ids = self.plot_bboxes(results, frame)
+                frame_with_bboxes, xyxys, confidences, class_ids, class_counts  = self.plot_bboxes(results, frame)
+
+                # Print results
+                print(f"Results for {filename}:")
+                print(f"Class Counts: {class_counts}")
+
+                # Optional: print the recognized class names
+                for class_id, count in class_counts.items():
+                    class_name = self.CLASS_NAMES_DICT[class_id]    #class_name為物品名稱，count為該物品的總數
+                    print(f"{class_name}: {count}")
+
+                print(f"Results for {filename}:")
+                json_result = results[0].tojson()   # 傳送結果
+                print(json_result)
+
+
                 end_time = time()
                 fps = 1 / np.round(end_time - start_time, 2)
 
@@ -67,7 +87,8 @@ class ObjectDetection:
                 cv2.waitKey(3000)
                 cv2.destroyAllWindows()
 
+
 if __name__ == "__main__":
-    image_folder_path = 'path_for_images'  # Update this to your folder path
+    image_folder_path = 'images'  # Update this to your folder path
     detector = ObjectDetection(image_folder_path=image_folder_path)
     detector.process_images()
